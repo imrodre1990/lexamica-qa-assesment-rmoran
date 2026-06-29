@@ -1,0 +1,17 @@
+{
+  "name": "lexamica-referral-reference",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference implementation of the referral invitation lifecycle. System under test for the QA take-home.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
