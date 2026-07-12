@@ -75,41 +75,49 @@ believe they represent the same client — that is a legal and ethical crisis
 (duplicate representation), not just a data bug. The platform is the only system
 positioned to catch it.
 
-**Key invariants tested:**
-- A late out-of-band report from an expired firm freezes the referral to
-  `CONFLICT` and does NOT set `heldByFirmId`.
-- A second firm reporting after another has already accepted also triggers
-  `CONFLICT` and does NOT overwrite the original holder.
-- Every claim is recorded in the audit trail, even rejected ones.
-- A frozen referral rejects all further state-changing operations.
-- `resolveConflict` is the only valid path out of `CONFLICT`, and only for
-  firms that actually claimed the client.
+**Key invariants tested (priority order):**
+- `heldByFirmId` is never set or overwritten by a late or conflicting claim — this
+  is the single field that, if wrong, causes duplicate representation.
+- A second firm reporting after another has already accepted triggers `CONFLICT`
+  and does NOT overwrite the original holder.
+- Every claim is recorded in the audit trail, even rejected ones — a human
+  resolver needs the full history to make a fair decision.
+- A frozen referral rejects all further state-changing operations including
+  in-band accepts.
+- `resolveConflict` guards: rejects non-claimants and rejects calls on
+  non-frozen referrals — the resolution step must not introduce its own errors.
 
 ### 2. Disclosure / authorization (`disclosure.test.ts`) — CRITICAL
 
 Protected case data (client name, contact, case facts) must never reach a firm
 that does not hold the referral. This is an attorney-client privilege boundary.
 
-**Key invariants tested:**
-- An uninvited firm receives `DENIED` and no `case` field.
-- A firm with a `PENDING`, `EXPIRED`, or `DECLINED` invitation receives `PREVIEW`
-  only — never the `protected` sub-object.
-- Only `heldByFirmId` receives `FULL` access.
-- Engaging or freezing a referral does not expand visibility to other firms.
-- A firm that was never reached (firm-c when firm-b accepted) stays `DENIED`.
+**Key invariants tested (priority order):**
+- A `DENIED` response contains no `case` field at all — structural guard that
+  prevents data extraction regardless of the access level returned.
+- A `PREVIEW` response never includes the `protected` sub-object — checked at
+  the field level, not just the access level.
+- A firm that was never reached (firm-c when firm-b accepted first) stays
+  `DENIED` — being a candidate is not the same as being invited.
+- A previously invited firm is not upgraded to `FULL` after another firm accepts.
+- Only `heldByFirmId` receives `FULL` access with real protected data present.
 
 ### 3. Lifecycle / state machine (`lifecycle.test.ts`) — HIGH
 
 Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
 (fraud vector), or leave a referral permanently stuck (operational failure).
 
-**Key invariants tested:**
-- Accept → `ENGAGED`, correct holder set, `IN_BAND` claim recorded.
-- Decline advances to the next candidate in order, keeps status `OPEN`.
-- All candidates expired → `EXHAUSTED`, holder remains null.
-- A firm cannot accept before it is invited, after its invitation expired, or
-  after another firm is already engaged.
-- `getReferral` returns a deep copy — mutating it does not affect internal state.
+**Key invariants tested (priority order):**
+- `heldByFirmId` is set to the accepting firm — same invariant that drives all
+  access control downstream in the disclosure tests.
+- Idempotent accept: calling accept twice returns `ALREADY_HELD`, not an error —
+  network retries in a real platform must be handled gracefully.
+- Guards: expired firm rejected with `INVITATION_NOT_PENDING`, second firm
+  rejected with `ALREADY_ENGAGED`, uninvited firm rejected — firms act only
+  on their own turn.
+- Exhausted referral rejects all accepts with `CLOSED` — the end state is final.
+- `getReferral` returns a deep copy — mutating the snapshot does not affect
+  internal state.
 
 ---
 
