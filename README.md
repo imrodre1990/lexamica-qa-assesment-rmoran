@@ -28,12 +28,12 @@ Expected output with all tests passing:
 
 ```
  ✓ tests/smoke.test.ts          (1 test)
- ✓ tests/conflict.test.ts       (13 tests)
+ ✓ tests/conflict.test.ts       (14 tests)
  ✓ tests/disclosure.test.ts     (15 tests)
  ✓ tests/lifecycle.test.ts      (16 tests)
 
  Test Files  4 passed (4)
-      Tests  45 passed (45)
+      Tests  46 passed (46)
 ```
 
 No network access is required. Everything runs in-memory. The full suite completes in under 250ms.

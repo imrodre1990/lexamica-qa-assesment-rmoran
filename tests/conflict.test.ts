@@ -150,6 +150,18 @@ describe("conflict: additional claims on an already-frozen referral", () => {
     world.service.reportOutOfBand(world.referralId, world.firms.a);
   });
 
+  it("rejects reportOutOfBand from a firm that was never invited", () => {
+    // firm-c is in the candidate list but was never reached — the referral froze
+    // before its turn. It has no invitation so its claim is rejected outright.
+    // A firm with no invitation cannot even enter the conflict.
+    const { service, referralId, firms } = world;
+
+    const result = service.reportOutOfBand(referralId, firms.c);
+
+    expect(result.outcome.status).toBe("REJECTED");
+    expect(result.outcome).toMatchObject({ code: "NO_INVITATION" });
+  });
+
   it("does not assign heldByFirmId while frozen, even when more firms pile in", () => {
     // No matter how many firms report on a frozen referral, heldByFirmId must
     // stay unset until a human resolves it. Auto-assigning would pick a winner
