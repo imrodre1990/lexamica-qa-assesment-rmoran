@@ -36,7 +36,23 @@ Expected output with all tests passing:
       Tests  45 passed (45)
 ```
 
-No network access is required. Everything runs in-memory.
+No network access is required. Everything runs in-memory. The full suite completes in under 250ms.
+
+To run a specific file, suite, or test:
+
+```bash
+# Run a single test file
+npm test -- tests/conflict.test.ts
+
+# Run all files matching a pattern
+npm test -- tests/disclosure
+
+# Run a specific suite by name
+npm test -- -t "conflict: late out-of-band report after invitation expired"
+
+# Run a specific test by name
+npm test -- -t "does NOT assign heldByFirmId when the first claimant is an expired firm"
+```
 
 ---
 
@@ -163,44 +179,22 @@ Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
 
 ## What I'd do with more time
 
-1. **Mutation testing with Stryker.** Stryker automatically introduces small bugs into
-   the source code — flipping a condition, removing a guard — then runs the test suite
-   against each change. If a test fails, the bug was caught. If all tests still pass,
-   that code path is unprotected even if coverage says otherwise. This turns "I have
-   tests" into "my tests actually protect the invariants."
+1. **Mutation testing with Stryker.** Stryker automatically introduces small bugs into the source code — flipping a condition, removing a guard — then runs the test suite against each change. If a test fails, the bug was caught. If all tests still pass, that code path is unprotected even if coverage says otherwise. This turns "I have tests" into "my tests actually protect the invariants."
 
-2. **Property-based tests on the conflict path with fast-check.** Instead of
-   hand-writing specific scenarios, fast-check generates hundreds of random operation
-   sequences automatically and tries to break the invariant — e.g. `heldByFirmId` set
-   more than once. When it finds a failure it shrinks it to the shortest reproducible
-   sequence. This catches interleaving edge cases that no hand-written test would think
-   to cover.
+2. **Property-based tests on the conflict path with fast-check.** Instead of hand-writing specific scenarios, fast-check generates hundreds of random operation sequences automatically and tries to break the invariant — e.g. `heldByFirmId` set more than once. When it finds a failure it shrinks it to the shortest reproducible sequence. This catches interleaving edge cases that no hand-written test would think to cover.
 
-3. **AI agents embedded in the workflow.** Three targeted agents for a compliance-sensitive
-   team shipping continuously:
-   - **Sprint agent** — reads Jira story acceptance criteria when a sprint starts and
-     generates test case stubs; polishes them into runnable tests when the story moves
-     to QA status.
+3. **AI agents embedded in the workflow.** Three targeted agents for a compliance-sensitive team shipping continuously: - **Sprint agent** — reads Jira story acceptance criteria when a sprint starts and generates test case stubs; polishes them into runnable tests when the story moves to QA status.
    - **PR diff agent** — when a PR touches the conflict or disclosure paths, comments
      with the specific test cases that should be added or updated before merge.
    - **Production audit agent** — when a CONFLICT event is logged in production, reads
      the full audit trail and generates a regression test automatically. Real incidents
      become permanent test cases without a human having to translate them.
 
-4. **API-layer tests.** Wrap `ReferralService` in a minimal Express router and add one
-   contract test per access level — verifying the HTTP boundary enforces the same rules
-   as the service. Catches wiring bugs that unit tests miss, like a middleware stripping
-   a field before it reaches the service logic.
+4. **API-layer tests.** Wrap `ReferralService` in a minimal Express router and add one contract test per access level — verifying the HTTP boundary enforces the same rules as the service. Catches wiring bugs that unit tests miss, like a middleware stripping a field before it reaches the service logic.
 
-5. **Playwright E2E smoke.** One browser test covering the full acceptance flow: place
-   a referral, advance it to acceptance, verify the holding firm sees protected case
-   detail while a second browser tab logged in as a different firm does not. Catches
-   full-stack integration issues invisible at the unit layer.
+5. **Playwright E2E smoke.** One browser test covering the full acceptance flow: place a referral, advance it to acceptance, verify the holding firm sees protected case detail while a second browser tab logged in as a different firm does not. Catches full-stack integration issues invisible at the unit layer.
 
-6. **Injected ID factory.** Replace the global `counter` in `referralService.ts` with
-   an injected factory so each `ReferralService` instance generates its own isolated IDs.
-   Currently two test files running in the same process share the counter, which makes
-   tests order-dependent if they ever assert on specific ID values.
+6. **Injected ID factory.** Replace the global `counter` in `referralService.ts` with an injected factory so each `ReferralService` instance generates its own isolated IDs. Currently two test files running in the same process share the counter, which makes tests order-dependent if they ever assert on specific ID values.
 
 ---
 
