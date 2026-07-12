@@ -172,6 +172,7 @@ Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
    it). If all tests still pass, the mutation "survived" — meaning that code
    path is not actually protected, even if coverage says it is. A high mutation
    score means the tests are meaningful, not just present.
+   *Priority: first — validate what we already have before adding more.*
 
 2. **Property-based tests for the conflict path.** Use a library like
    `fast-check` to generate arbitrary interleaving sequences of accept /
@@ -186,20 +187,9 @@ Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
    making the bug easy to reproduce and fix. For the conflict path specifically,
    this catches interleaving edge cases that only appear when operations arrive
    in an unexpected order.
+   *Priority: second — extends the highest-risk path with cases we can't hand-write.*
 
-3. **API-layer tests.** Wrap `ReferralService` in a minimal Express router and
-   add one contract test per access level to verify the HTTP boundary enforces
-   the same rules as the service. This bridges the gap between the logic tests
-   here and the real platform's API.
-
-4. **Playwright E2E smoke.** One browser test: place a referral, advance it to
-   acceptance, and verify the holding firm sees the protected case detail in the
-   UI while another tab (different firm) does not.
-
-5. **Injected ID factory.** Replace the global `counter` with an injected factory
-   to make ID generation deterministic and isolated per test instance.
-
-6. **AI agents embedded in the development workflow.** Three high-value agents
+3. **AI agents embedded in the development workflow.** Three high-value agents
    for a team shipping continuously in a compliance-sensitive domain:
 
    - **Sprint test generation agent.** When a sprint starts in Jira and stories
@@ -225,6 +215,23 @@ Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
      cases, so the same situation can never silently regress. This closes the loop
      between production monitoring and the test suite without requiring a human to
      manually translate an incident into a test.
+
+   *Priority: third — scales quality across the whole team, not just the test suite.*
+
+4. **API-layer tests.** Wrap `ReferralService` in a minimal Express router and
+   add one contract test per access level to verify the HTTP boundary enforces
+   the same rules as the service. This bridges the gap between the logic tests
+   here and the real platform's API.
+   *Priority: fourth — practical bridge to the real platform once an HTTP layer exists.*
+
+5. **Playwright E2E smoke.** One browser test: place a referral, advance it to
+   acceptance, and verify the holding firm sees the protected case detail in the
+   UI while another tab (different firm) does not.
+   *Priority: fifth — full-stack validation, relevant once the real platform UI exists.*
+
+6. **Injected ID factory.** Replace the global `counter` with an injected factory
+   to make ID generation deterministic and isolated per test instance.
+   *Priority: sixth — small engineering fix, important for scale but not blocking.*
 
 ---
 
