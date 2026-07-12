@@ -125,12 +125,12 @@ Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
 
 | Area | Reason |
 |------|--------|
-| Timestamp / TTL arithmetic | The expiry clock is a constant; asserting `expiresAt === createdAt + INVITE_TTL_MS` tests the implementation, not the invariant. Worth one test in a full suite pass, not a priority now. |
-| `createReferral` input validation | Edge-guard tests (unknown caseId, empty candidates). Low risk — throws immediately, easy to catch in code review. |
+| Timestamp / TTL arithmetic | The expiry clock is a constant. Asserting `expiresAt === createdAt + INVITE_TTL_MS` tests the implementation, not the invariant. |
+| `createReferral` input validation | Low risk — throws immediately on bad input, easy to catch in code review. |
 | Settlement and fee split | Not implemented in this module. |
-| Auth / identity spoofing | Out of scope per README — firmId is passed directly; auth is a transport-layer concern. |
+| Auth / identity spoofing | Out of scope — `firmId` is passed directly; auth is a transport-layer concern. |
 | Performance / load | In-memory, no I/O — irrelevant at this layer. |
-| Exhaustive `seq` field checks | The sequence position is an internal detail; what matters is which firm is invited next, which the lifecycle tests cover. |
+| Exhaustive `seq` field checks | Internal detail; what matters is which firm is invited next, which the lifecycle tests cover. |
 
 ---
 
@@ -221,3 +221,5 @@ The `.github/workflows/ci.yml` file shows the intended pipeline:
 The integration and E2E jobs are included as a design reference, not runnable
 code for this module. See `PIPELINE.md` for the full quality-gate design, flake
 policy, and production observability plan.
+
+---
