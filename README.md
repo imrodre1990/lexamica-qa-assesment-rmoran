@@ -240,10 +240,15 @@ Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
 The `.github/workflows/ci.yml` file shows the intended pipeline:
 
 - **On every PR:** typecheck + unit tests run in parallel. Both must pass to merge.
-- **On merge to main:** same suite re-runs, then integration + E2E (commented out
-  in this module since there is no HTTP/DB layer — see the inline comments for
-  what these would look like on the real platform).
+- **On merge to main:** the same unit suite re-runs on the merge commit, then
+  integration and E2E jobs would follow. Those two jobs are commented out in
+  the workflow file because this module has no HTTP server or database — it is
+  pure in-memory TypeScript with no transport layer to test against. On the real
+  Lexamica platform (Next.js + Express + MongoDB), these jobs would spin up a
+  real database, hit the real API with HTTP requests, and drive a browser via
+  Playwright. The commented-out jobs show exactly what that would look like so
+  the design intent is clear even though they are not runnable here.
 
-The integration and E2E jobs are included as an illustrative design reference,
-not runnable code for this module. See `PIPELINE.md` for the full quality-gate
-design, flake policy, and production observability plan.
+The integration and E2E jobs are included as a design reference, not runnable
+code for this module. See `PIPELINE.md` for the full quality-gate design, flake
+policy, and production observability plan.
