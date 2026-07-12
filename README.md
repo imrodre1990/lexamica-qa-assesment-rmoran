@@ -165,7 +165,13 @@ Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
 
 1. **Mutation testing.** Run a tool like Stryker to introduce deliberate bugs
    and verify the suite catches them. This turns "I have tests" into "my tests
-   actually protect the invariants."
+   actually protect the invariants." Stryker works by automatically modifying
+   the source code in small ways — flipping a `===` to `!==`, changing `null`
+   to a value, removing a condition — then running the test suite against each
+   mutation. If a test fails, the mutation is "killed" (good — the suite caught
+   it). If all tests still pass, the mutation "survived" — meaning that code
+   path is not actually protected, even if coverage says it is. A high mutation
+   score means the tests are meaningful, not just present.
 
 2. **Property-based tests for the conflict path.** Use a library like
    `fast-check` to generate arbitrary interleaving sequences of accept /
