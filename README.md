@@ -199,6 +199,33 @@ Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
 5. **Injected ID factory.** Replace the global `counter` with an injected factory
    to make ID generation deterministic and isolated per test instance.
 
+6. **AI agents embedded in the development workflow.** Three high-value agents
+   for a team shipping continuously in a compliance-sensitive domain:
+
+   - **Sprint test generation agent.** When a sprint starts in Jira and stories
+     are created, an agent reads each story's acceptance criteria and automatically
+     generates test case stubs scoped to the risk level of the story — conflict
+     path stories get conflict-aware stubs, disclosure stories get negative test
+     stubs. When a story is moved to QA status, the agent polishes the stubs into
+     runnable tests using the existing patterns in the codebase, ready for a QA
+     engineer to review and approve before merge. This removes the blank-page
+     problem and keeps test thinking tied to feature thinking from day one.
+
+   - **PR diff analysis agent.** When a pull request touches `referralService.ts`
+     or any file in the conflict or disclosure paths, an agent analyzes the diff,
+     identifies which invariants the change could affect, and comments on the PR
+     with the specific test cases that should be added or updated. This acts as
+     an automated code reviewer focused purely on test coverage of high-risk paths
+     — catching gaps before a human reviewer has to think about them.
+
+   - **Production audit trail agent.** When a CONFLICT event is logged in
+     production, an agent reads the full audit trail — the sequence of operations,
+     timestamps, and firm IDs — and automatically generates a regression test that
+     reproduces the exact scenario. Real production conflicts become permanent test
+     cases, so the same situation can never silently regress. This closes the loop
+     between production monitoring and the test suite without requiring a human to
+     manually translate an incident into a test.
+
 ---
 
 ## CI/CD
