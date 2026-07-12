@@ -35,20 +35,10 @@ describe("disclosure: uninvited firm is fully denied", () => {
     world = createSeededWorld(clock);
   });
 
-  it("returns DENIED for a firm with no invitation on this referral", () => {
-    // Protects: a firm that was never part of this referral's candidate list
-    // must receive zero information — not even the preview summary.
-    const { service, referralId } = world;
-    const outsider = "firm-outsider";
-
-    const result = service.view(referralId, outsider);
-
-    expect(result.access).toBe("DENIED");
-  });
-
   it("does not expose any case data in a DENIED response", () => {
-    // Structural check: the DENIED shape must not contain a `case` field.
-    // If the field ever sneaks in, a client could extract data from the response.
+    // THE structural guard: the DENIED shape must contain zero case information.
+    // If a `case` field ever appears on a DENIED response, a client could extract
+    // data from the response shape regardless of the access level returned.
     const { service, referralId } = world;
 
     const result = service.view(referralId, "firm-outsider");
@@ -56,15 +46,24 @@ describe("disclosure: uninvited firm is fully denied", () => {
     expect(result).not.toHaveProperty("case");
   });
 
+  it("returns DENIED for a firm with no invitation on this referral", () => {
+    // Protects: a firm that was never part of this referral's candidate list
+    // must receive zero information — not even the preview summary.
+    const { service, referralId } = world;
+
+    const result = service.view(referralId, "firm-outsider");
+
+    expect(result.access).toBe("DENIED");
+  });
+
   it("denies the originating firm access to protected data", () => {
     // The firm that placed the case on the platform is NOT a candidate firm.
     // It should not be able to read the protected case detail through the
-    // view surface either.
+    // view surface — originator status does not grant access.
     const { service, referralId, firms } = world;
 
     const result = service.view(referralId, firms.originating);
 
-    // Originating firm has no invitation, so access must be DENIED.
     expect(result.access).toBe("DENIED");
   });
 });
@@ -81,19 +80,10 @@ describe("disclosure: invited firm sees preview but not protected data", () => {
     // After createSeededWorld: firm-a expired, firm-b is currently invited.
   });
 
-  it("returns PREVIEW access for the currently invited firm", () => {
-    // firm-b is invited and pending — it may see the non-confidential summary
-    // to decide whether to accept, but not the client's identity or facts.
-    const { service, referralId, firms } = world;
-
-    const result = service.view(referralId, firms.b);
-
-    expect(result.access).toBe("PREVIEW");
-  });
-
   it("does not expose protected fields in a PREVIEW response", () => {
-    // The PREVIEW shape must never include clientName, clientContact, or facts.
-    // This is the primary disclosure guard for pending invitations.
+    // THE primary disclosure guard for pending invitations. The PREVIEW shape
+    // must never include clientName, clientContact, or facts — these are the
+    // fields that, if leaked, constitute an attorney-client privilege violation.
     const { service, referralId, firms } = world;
 
     const result = service.view(referralId, firms.b);
@@ -106,9 +96,29 @@ describe("disclosure: invited firm sees preview but not protected data", () => {
     }
   });
 
+  it("does not upgrade a pending firm to FULL before it accepts", () => {
+    // A firm with a PENDING invitation must never receive FULL access —
+    // only the firm that has actually accepted and holds the referral may.
+    const { service, referralId, firms } = world;
+
+    const result = service.view(referralId, firms.b);
+
+    expect(result.access).not.toBe("FULL");
+  });
+
+  it("returns PREVIEW access for the currently invited firm", () => {
+    // firm-b is invited and pending — it may see the non-confidential summary
+    // to decide whether to accept, but not the client's identity or facts.
+    const { service, referralId, firms } = world;
+
+    const result = service.view(referralId, firms.b);
+
+    expect(result.access).toBe("PREVIEW");
+  });
+
   it("returns PREVIEW for a firm whose invitation has already expired", () => {
     // firm-a's invitation expired, but it was invited — it should still see
-    // the preview (it knows it was considered). It must not see protected data.
+    // the preview. It must not see protected data.
     const { service, referralId, firms } = world;
 
     const result = service.view(referralId, firms.a);
@@ -123,21 +133,11 @@ describe("disclosure: invited firm sees preview but not protected data", () => {
     const freshWorld = createSeededWorld(clock);
     const { service, referralId, firms } = freshWorld;
 
-    service.decline(referralId, firms.b); // firm-b declines
+    service.decline(referralId, firms.b);
     const result = service.view(referralId, firms.b);
 
     expect(result.access).toBe("PREVIEW");
     expect(result).not.toHaveProperty("case.protected");
-  });
-
-  it("does not upgrade a pending firm to FULL before it accepts", () => {
-    // A firm with a PENDING invitation must never receive FULL access —
-    // only the firm that has actually accepted and holds the referral may.
-    const { service, referralId, firms } = world;
-
-    const result = service.view(referralId, firms.b);
-
-    expect(result.access).not.toBe("FULL");
   });
 });
 
@@ -151,6 +151,38 @@ describe("disclosure: only the holding firm receives full case detail", () => {
   beforeEach(() => {
     world = createSeededWorld(clock);
     world.service.accept(world.referralId, world.firms.b); // firm-b now holds
+  });
+
+  it("does not expose protected data to the next-in-line firm that was never reached", () => {
+    // firm-c is in the candidate list but never received an invitation because
+    // firm-b accepted first. firm-c must not see any case data at all.
+    // This is a subtle edge case: being a candidate is not the same as being invited.
+    const { service, referralId, firms } = world;
+
+    const result = service.view(referralId, firms.c);
+
+    expect(result.access).toBe("DENIED");
+  });
+
+  it("still returns PREVIEW (not FULL) for a previously invited firm after another firm accepts", () => {
+    // firm-a was invited (and expired) before firm-b accepted. firm-a must NOT
+    // be upgraded to FULL just because the referral is now ENGAGED.
+    const { service, referralId, firms } = world;
+
+    const result = service.view(referralId, firms.a);
+
+    expect(result.access).toBe("PREVIEW");
+    expect(result).not.toHaveProperty("case.protected");
+  });
+
+  it("still returns DENIED for an uninvited firm after the referral is ENGAGED", () => {
+    // Engaging a referral must not broaden visibility to firms outside the
+    // candidate list. Status change must never widen the access boundary.
+    const { service, referralId } = world;
+
+    const result = service.view(referralId, "firm-outsider");
+
+    expect(result.access).toBe("DENIED");
   });
 
   it("returns FULL access for the firm that accepted the referral", () => {
@@ -175,37 +207,6 @@ describe("disclosure: only the holding firm receives full case detail", () => {
       expect(result.case.protected.facts).toBeTruthy();
     }
   });
-
-  it("still returns PREVIEW (not FULL) for a previously invited firm after another firm accepts", () => {
-    // firm-a was invited (and expired) before firm-b accepted. firm-a must NOT
-    // be upgraded to FULL just because it was part of the sequence.
-    const { service, referralId, firms } = world;
-
-    const result = service.view(referralId, firms.a);
-
-    expect(result.access).toBe("PREVIEW");
-    expect(result).not.toHaveProperty("case.protected");
-  });
-
-  it("still returns DENIED for an uninvited firm after the referral is ENGAGED", () => {
-    // Engaging a referral must not broaden visibility to firms outside the
-    // candidate list.
-    const { service, referralId } = world;
-
-    const result = service.view(referralId, "firm-outsider");
-
-    expect(result.access).toBe("DENIED");
-  });
-
-  it("does not expose protected data to the next-in-line firm (firm-c) that was never reached", () => {
-    // firm-c is in the candidate list but never received an invitation because
-    // firm-b accepted first. firm-c must not see any case data.
-    const { service, referralId, firms } = world;
-
-    const result = service.view(referralId, firms.c);
-
-    expect(result.access).toBe("DENIED");
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -214,16 +215,15 @@ describe("disclosure: only the holding firm receives full case detail", () => {
 
 describe("disclosure: access during and after a CONFLICT state", () => {
   it("does not grant FULL access to either claimant while frozen", () => {
-    // When a referral is CONFLICT, heldByFirmId may be null or set to the
-    // original holder. Either way, a firm that only has an out-of-band claim
-    // must not receive FULL access.
+    // When frozen, heldByFirmId may be null or set to the original holder.
+    // A firm that only has an out-of-band claim must not receive FULL access
+    // just because they are involved in the conflict.
     const { service, referralId, firms } = createSeededWorld(clock);
 
-    service.accept(referralId, firms.b);   // firm-b holds
+    service.accept(referralId, firms.b);
     service.reportOutOfBand(referralId, firms.a); // → CONFLICT
 
     const resultA = service.view(referralId, firms.a);
-    // firm-a was invited (expired), so it sees PREVIEW — but not FULL.
     expect(resultA.access).not.toBe("FULL");
     expect(resultA).not.toHaveProperty("case.protected");
   });

@@ -33,6 +33,18 @@ describe("conflict: late out-of-band report after invitation expired", () => {
     world = createSeededWorld(clock);
   });
 
+  it("does NOT assign heldByFirmId when the first claimant is an expired firm", () => {
+    // THE core invariant: heldByFirmId must never be set from a late claim.
+    // Freezing is correct; silently granting ownership to the late claimant is not.
+    // This is the exact field that, if set wrong, causes duplicate representation.
+    const { service, referralId, firms } = world;
+
+    service.reportOutOfBand(referralId, firms.a);
+    const snapshot = service.getReferral(referralId);
+
+    expect(snapshot.heldByFirmId).toBeNull();
+  });
+
   it("freezes the referral to CONFLICT when an expired firm reports a real-world signing", () => {
     // Protects: firm-a's invitation expired on the platform, but firm-a signed
     // the client in the real world and reports it late. The platform has already
@@ -44,16 +56,6 @@ describe("conflict: late out-of-band report after invitation expired", () => {
 
     expect(result.outcome.status).toBe("CONFLICT");
     expect(result.outcome).toMatchObject({ status: "CONFLICT", code: "DOUBLE_SIGN" });
-  });
-
-  it("does NOT assign heldByFirmId when the first claimant is an expired firm", () => {
-    // Freezing is correct; silently granting ownership to the late claimant is not.
-    const { service, referralId, firms } = world;
-
-    service.reportOutOfBand(referralId, firms.a);
-    const snapshot = service.getReferral(referralId);
-
-    expect(snapshot.heldByFirmId).toBeNull();
   });
 
   it("records the late out-of-band claim in the audit trail", () => {
@@ -81,6 +83,19 @@ describe("conflict: out-of-band report after another firm is already engaged", (
     world = createSeededWorld(clock);
   });
 
+  it("does NOT overwrite the original holder when conflict is detected", () => {
+    // THE core invariant of the entire conflict path: heldByFirmId is set at
+    // most once and never changed by a conflict event. Overwriting it would
+    // silently reassign the client — the exact double-sign we are preventing.
+    const { service, referralId, firms } = world;
+
+    service.accept(referralId, firms.b);
+    service.reportOutOfBand(referralId, firms.a);
+    const snapshot = service.getReferral(referralId);
+
+    expect(snapshot.heldByFirmId).toBe(firms.b);
+  });
+
   it("freezes to CONFLICT when a second firm reports a signing after one already accepted in-band", () => {
     // firm-b accepts normally. Later, firm-a reports it also signed the client.
     // The platform must detect this as a double-sign immediately and freeze.
@@ -91,31 +106,6 @@ describe("conflict: out-of-band report after another firm is already engaged", (
 
     expect(result.outcome.status).toBe("CONFLICT");
     expect(result.outcome).toMatchObject({ code: "DOUBLE_SIGN" });
-  });
-
-  it("does NOT overwrite the original holder when conflict is detected", () => {
-    // The core invariant: heldByFirmId is set at most once and never changed by
-    // a conflict event. Overwriting it would silently reassign the client.
-    const { service, referralId, firms } = world;
-
-    service.accept(referralId, firms.b);
-    service.reportOutOfBand(referralId, firms.a);
-    const snapshot = service.getReferral(referralId);
-
-    expect(snapshot.heldByFirmId).toBe(firms.b);
-  });
-
-  it("keeps the referral in CONFLICT even if the same late firm reports again", () => {
-    // Duplicate reports from the same firm must not escalate or reset state.
-    const { service, referralId, firms } = world;
-
-    service.accept(referralId, firms.b);
-    service.reportOutOfBand(referralId, firms.a);
-    const result2 = service.reportOutOfBand(referralId, firms.a);
-
-    expect(result2.outcome.status).toBe("CONFLICT");
-    const snapshot = service.getReferral(referralId);
-    expect(snapshot.heldByFirmId).toBe(firms.b);
   });
 
   it("records both claimants in the audit trail for human resolution", () => {
@@ -132,6 +122,19 @@ describe("conflict: out-of-band report after another firm is already engaged", (
     expect(firmBClaim).toBeDefined();
     expect(firmAClaim).toBeDefined();
   });
+
+  it("keeps the referral in CONFLICT even if the same late firm reports again", () => {
+    // Duplicate reports from the same firm must not escalate or reset state.
+    const { service, referralId, firms } = world;
+
+    service.accept(referralId, firms.b);
+    service.reportOutOfBand(referralId, firms.a);
+    const result2 = service.reportOutOfBand(referralId, firms.a);
+
+    expect(result2.outcome.status).toBe("CONFLICT");
+    const snapshot = service.getReferral(referralId);
+    expect(snapshot.heldByFirmId).toBe(firms.b);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -147,6 +150,18 @@ describe("conflict: additional claims on an already-frozen referral", () => {
     world.service.reportOutOfBand(world.referralId, world.firms.a);
   });
 
+  it("does not assign heldByFirmId while frozen, even when more firms pile in", () => {
+    // No matter how many firms report on a frozen referral, heldByFirmId must
+    // stay unset until a human resolves it. Auto-assigning would pick a winner
+    // the platform cannot verify.
+    const { service, referralId, firms } = world;
+
+    service.reportOutOfBand(referralId, firms.b);
+    const snapshot = service.getReferral(referralId);
+
+    expect(snapshot.heldByFirmId).toBeNull();
+  });
+
   it("keeps status CONFLICT when another firm also reports out-of-band", () => {
     // A frozen referral must stay frozen regardless of additional reports.
     // It must not loop back to OPEN or advance to ENGAGED.
@@ -157,15 +172,6 @@ describe("conflict: additional claims on an already-frozen referral", () => {
     expect(result.outcome.status).toBe("CONFLICT");
     const snapshot = service.getReferral(referralId);
     expect(snapshot.status).toBe("CONFLICT");
-  });
-
-  it("does not assign heldByFirmId while frozen", () => {
-    const { service, referralId, firms } = world;
-
-    service.reportOutOfBand(referralId, firms.b);
-    const snapshot = service.getReferral(referralId);
-
-    expect(snapshot.heldByFirmId).toBeNull();
   });
 });
 
@@ -181,21 +187,10 @@ describe("conflict: resolveConflict assigns the correct holder", () => {
     world.service.reportOutOfBand(world.referralId, world.firms.a); // trigger CONFLICT
   });
 
-  it("moves the referral to ENGAGED and sets heldByFirmId when a valid claimant is chosen", () => {
-    // After a human picks a winner, the referral must become ENGAGED and only
-    // that firm should hold the client.
-    const { service, referralId, firms } = world;
-
-    const result = service.resolveConflict(referralId, firms.a);
-
-    expect(result.outcome.status).toBe("OK");
-    expect(result.referral.status).toBe("ENGAGED");
-    expect(result.referral.heldByFirmId).toBe(firms.a);
-  });
-
   it("rejects resolution with a firm that was not a claimant", () => {
-    // Assigning the referral to a firm that never claimed the client would be
-    // a data-integrity error introduced at the resolution step itself.
+    // The resolution step itself must not introduce a data-integrity error.
+    // Assigning to a firm that never claimed the client is a mistake made at
+    // resolution time — we guard against it explicitly.
     const { service, referralId, firms } = world;
 
     const result = service.resolveConflict(referralId, firms.c);
@@ -211,6 +206,18 @@ describe("conflict: resolveConflict assigns the correct holder", () => {
 
     expect(result.outcome.status).toBe("REJECTED");
     expect(result.outcome).toMatchObject({ code: "NOT_CONFLICT" });
+  });
+
+  it("moves the referral to ENGAGED and sets heldByFirmId when a valid claimant is chosen", () => {
+    // After a human picks a winner, the referral must become ENGAGED and only
+    // that firm should hold the client.
+    const { service, referralId, firms } = world;
+
+    const result = service.resolveConflict(referralId, firms.a);
+
+    expect(result.outcome.status).toBe("OK");
+    expect(result.referral.status).toBe("ENGAGED");
+    expect(result.referral.heldByFirmId).toBe(firms.a);
   });
 });
 
