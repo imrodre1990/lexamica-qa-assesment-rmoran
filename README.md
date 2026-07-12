@@ -163,75 +163,12 @@ Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
 
 ## What I'd do with more time
 
-1. **Mutation testing.** Run a tool like Stryker to introduce deliberate bugs
-   and verify the suite catches them. This turns "I have tests" into "my tests
-   actually protect the invariants." Stryker works by automatically modifying
-   the source code in small ways — flipping a `===` to `!==`, changing `null`
-   to a value, removing a condition — then running the test suite against each
-   mutation. If a test fails, the mutation is "killed" (good — the suite caught
-   it). If all tests still pass, the mutation "survived" — meaning that code
-   path is not actually protected, even if coverage says it is. A high mutation
-   score means the tests are meaningful, not just present.
-   *Priority: first — validate what we already have before adding more.*
-
-2. **Property-based tests for the conflict path.** Use a library like
-   `fast-check` to generate arbitrary interleaving sequences of accept /
-   decline / reportOutOfBand calls and assert that `heldByFirmId` is always
-   set at most once. This is where the subtle edge cases live.
-   `fast-check` works by generating hundreds of random inputs automatically
-   rather than hand-writing each scenario. You define the invariant — e.g.
-   "no matter what sequence of operations runs, `heldByFirmId` is set at most
-   once" — and fast-check tries to break it by exploring combinations you
-   wouldn't think to write manually. When it finds a failure, it shrinks the
-   input down to the smallest possible sequence that still breaks the invariant,
-   making the bug easy to reproduce and fix. For the conflict path specifically,
-   this catches interleaving edge cases that only appear when operations arrive
-   in an unexpected order.
-   *Priority: second — extends the highest-risk path with cases we can't hand-write.*
-
-3. **AI agents embedded in the development workflow.** Three high-value agents
-   for a team shipping continuously in a compliance-sensitive domain:
-
-   - **Sprint test generation agent.** When a sprint starts in Jira and stories
-     are created, an agent reads each story's acceptance criteria and automatically
-     generates test case stubs scoped to the risk level of the story — conflict
-     path stories get conflict-aware stubs, disclosure stories get negative test
-     stubs. When a story is moved to QA status, the agent polishes the stubs into
-     runnable tests using the existing patterns in the codebase, ready for a QA
-     engineer to review and approve before merge. This removes the blank-page
-     problem and keeps test thinking tied to feature thinking from day one.
-
-   - **PR diff analysis agent.** When a pull request touches `referralService.ts`
-     or any file in the conflict or disclosure paths, an agent analyzes the diff,
-     identifies which invariants the change could affect, and comments on the PR
-     with the specific test cases that should be added or updated. This acts as
-     an automated code reviewer focused purely on test coverage of high-risk paths
-     — catching gaps before a human reviewer has to think about them.
-
-   - **Production audit trail agent.** When a CONFLICT event is logged in
-     production, an agent reads the full audit trail — the sequence of operations,
-     timestamps, and firm IDs — and automatically generates a regression test that
-     reproduces the exact scenario. Real production conflicts become permanent test
-     cases, so the same situation can never silently regress. This closes the loop
-     between production monitoring and the test suite without requiring a human to
-     manually translate an incident into a test.
-
-   *Priority: third — scales quality across the whole team, not just the test suite.*
-
-4. **API-layer tests.** Wrap `ReferralService` in a minimal Express router and
-   add one contract test per access level to verify the HTTP boundary enforces
-   the same rules as the service. This bridges the gap between the logic tests
-   here and the real platform's API.
-   *Priority: fourth — practical bridge to the real platform once an HTTP layer exists.*
-
-5. **Playwright E2E smoke.** One browser test: place a referral, advance it to
-   acceptance, and verify the holding firm sees the protected case detail in the
-   UI while another tab (different firm) does not.
-   *Priority: fifth — full-stack validation, relevant once the real platform UI exists.*
-
-6. **Injected ID factory.** Replace the global `counter` with an injected factory
-   to make ID generation deterministic and isolated per test instance.
-   *Priority: sixth — small engineering fix, important for scale but not blocking.*
+1. **Mutation testing with Stryker** — verify the suite actually catches bugs, not just that it runs.
+2. **Property-based tests on the conflict path with fast-check** — find interleaving edge cases that hand-written tests miss.
+3. **AI agents in the workflow** — sprint test generation from Jira stories, PR diff analysis on high-risk files, and automatic regression test generation from production CONFLICT events.
+4. **API-layer tests** — wrap `ReferralService` in a minimal Express router and add one contract test per access level.
+5. **Playwright E2E smoke** — one browser test covering the full referral acceptance flow and the disclosure boundary across two firm sessions.
+6. **Injected ID factory** — replace the global `counter` with an injected factory for deterministic, isolated ID generation per test instance.
 
 ---
 
