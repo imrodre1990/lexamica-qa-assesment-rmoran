@@ -177,6 +177,15 @@ Broken transitions could skip firms (fee dispute), allow out-of-turn accepts
    `fast-check` to generate arbitrary interleaving sequences of accept /
    decline / reportOutOfBand calls and assert that `heldByFirmId` is always
    set at most once. This is where the subtle edge cases live.
+   `fast-check` works by generating hundreds of random inputs automatically
+   rather than hand-writing each scenario. You define the invariant — e.g.
+   "no matter what sequence of operations runs, `heldByFirmId` is set at most
+   once" — and fast-check tries to break it by exploring combinations you
+   wouldn't think to write manually. When it finds a failure, it shrinks the
+   input down to the smallest possible sequence that still breaks the invariant,
+   making the bug easy to reproduce and fix. For the conflict path specifically,
+   this catches interleaving edge cases that only appear when operations arrive
+   in an unexpected order.
 
 3. **API-layer tests.** Wrap `ReferralService` in a minimal Express router and
    add one contract test per access level to verify the HTTP boundary enforces
